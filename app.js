@@ -6,6 +6,7 @@ import { renderPoster, canvasBlob, SIZES } from "./poster.js";
 import { icon, HERO_ART } from "./icons.js";
 import { hasPhone, errKind, LIMITS } from "./guard.js";
 import { NOTICE_VERSION, privacyHtml, termsHtml } from "./legal.js";
+import { searchPlaces, reversePlace, matchCity, myLocation } from "./geo.js";
 
 const cfg = window.LPF_CONFIG || {};
 let store = null;
@@ -652,6 +653,15 @@ function viewReport(kind) {
 
    <fieldset class="step panel" data-step="3" hidden>
      <legend>${esc(t("stepWhere"))}</legend>
+     <div class="addr" id="addrBox">
+       <label for="addrQ"><span class="lbl">${esc(t("addrLabel"))} ${optional}</span></label>
+       <div class="addr-row"><input id="addrQ" type="search" enterkeyhint="search" maxlength="120" autocomplete="off" placeholder="${esc(t("addrPh"))}">
+         <button class="btn sm" type="button" id="addrGo">${icon("search")}${esc(t("addrFind"))}</button></div>
+       <button class="btn sm" type="button" id="useLoc">${icon("pin")}${esc(t("useLoc"))}</button>
+       <p class="meta" id="addrMsg" role="status" aria-live="polite"></p>
+       <ul class="addr-res" id="addrRes" hidden></ul>
+       <small class="muted">${esc(t("addrHelp"))}</small>
+     </div>
      <label>${esc(t("fCity"))}<select id="city">${CITIES.map(c => opt(c.id, c[lang], c.id === (d("city") || "riyadh"))).join("")}</select></label>
      <label>${esc(t("fDistrict"))}<input id="district" list="dl" maxlength="80" value="${esc(d("district"))}" autocomplete="off"><datalist id="dl">${districts}</datalist></label>
      <label>${esc(t(lost ? "fDateLost" : "fDateFound"))}<input id="event_date" type="date" value="${esc(d("event_date") || today())}" max="${today()}"></label>
@@ -713,6 +723,53 @@ function viewReport(kind) {
     files = files.concat(add).slice(0, 4); ev.target.value = ""; drawPrev();
   });
 
+  // ---- address search, "use my location" and map pick (step 3) ----
+  let autoDistrict = ""; // last district we filled in ourselves, so we never overwrite what the person typed
+  const addrMsg = m => { document.getElementById("addrMsg").textContent = m || ""; };
+  const fillFrom = (place, force) => {
+    if (!place) return;
+    const dEl = document.getElementById("district");
+    if (place.district && (force || !dEl.value.trim() || dEl.value.trim() === autoDistrict)) { dEl.value = place.district; autoDistrict = place.district; }
+    const cid = matchCity(place.cityName, CITIES) || matchCity(place.label, CITIES);
+    const cEl = document.getElementById("city");
+    if (cid && cEl.value !== cid) cEl.value = cid;
+    saveDraft();
+  };
+  const setPin = (lat, lng, zoom) => {
+    pin = { lat: +(+lat).toFixed(5), lng: +(+lng).toFixed(5) };
+    if (activeMap && window.L) {
+      if (marker) marker.setLatLng([pin.lat, pin.lng]); else marker = L.marker([pin.lat, pin.lng]).addTo(activeMap);
+      activeMap.setView([pin.lat, pin.lng], zoom || Math.max(activeMap.getZoom(), 15));
+    }
+    document.getElementById("clearPin").hidden = false; saveDraft();
+  };
+  const reverseFill = async (lat, lng) => {
+    try { fillFrom(await reversePlace(lat, lng, lang), false); } catch (e) { /* the pin is enough */ }
+  };
+  const runSearch = async () => {
+    const q = val("addrQ"), list = document.getElementById("addrRes");
+    if (q.length < 2) { addrMsg(t("addrShort")); return; }
+    list.hidden = true; list.innerHTML = ""; addrMsg(t("addrSearching"));
+    let res = [];
+    try { res = await searchPlaces(q, lang); } catch (e) { addrMsg(t("addrErr")); return; }
+    if (!res.length) { addrMsg(t("addrNone")); return; }
+    addrMsg(t("addrPick"));
+    list.innerHTML = res.map((r, i) => `<li><button type="button" class="addr-opt" data-i="${i}">${icon("pin")}<span>${esc(r.label)}</span></button></li>`).join("");
+    list.hidden = false;
+    list.querySelectorAll("[data-i]").forEach(b => b.onclick = () => {
+      const r = res[+b.dataset.i]; list.hidden = true;
+      setPin(r.lat, r.lng, 16); fillFrom(r, true); addrMsg(t("addrPicked"));
+    });
+  };
+  document.getElementById("addrGo").onclick = runSearch;
+  document.getElementById("addrQ").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); runSearch(); } });
+  document.getElementById("useLoc").onclick = async () => {
+    addrMsg(t("locBusy"));
+    try { const p = await myLocation(); setPin(p.lat, p.lng, 16); addrMsg(t("addrPicked")); await reverseFill(p.lat, p.lng); }
+    catch (e) { addrMsg(t("locDenied")); }
+  };
+  document.getElementById("clearPin").onclick = () => { pin = null; if (marker) { marker.remove(); marker = null; } document.getElementById("clearPin").hidden = true; addrMsg(""); saveDraft(); };
+
   // ---- map (step 3) ----
   const initMap = () => {
     if (activeMap || !window.L) { if (!window.L) document.getElementById("pinWrap").hidden = true; return; }
@@ -724,9 +781,9 @@ function viewReport(kind) {
       pin = { lat: +e.latlng.lat.toFixed(5), lng: +e.latlng.lng.toFixed(5) };
       if (marker) marker.setLatLng(e.latlng); else marker = L.marker(e.latlng).addTo(activeMap);
       document.getElementById("clearPin").hidden = false; saveDraft();
+      reverseFill(pin.lat, pin.lng);
     });
-    document.getElementById("city").addEventListener("change", ev => { const c = city(ev.target.value); activeMap.setView([c.lat, c.lng], 11); });
-    document.getElementById("clearPin").onclick = () => { pin = null; if (marker) { marker.remove(); marker = null; } document.getElementById("clearPin").hidden = true; saveDraft(); };
+    document.getElementById("city").addEventListener("change", ev => { if (!pin) { const c = city(ev.target.value); activeMap.setView([c.lat, c.lng], 11); } });
   };
 
   // ---- validation per step ----
@@ -859,7 +916,8 @@ async function viewCase(id) {
   <div class="ai-box"><div class="ai-head">${icon("sparkle")}<div><b>${esc(t("aiTitle"))}</b><p>${esc(t(c.kind === "lost" ? "aiIntroLost" : "aiIntroFound"))}</p></div></div>
     <p class="ai-status" id="aiStatus" role="status" aria-live="polite"></p></div>
   <div id="matches" class="list"><p class="muted">${esc(t("loading"))}</p></div>
-  ${mine ? `<div class="section-head"><div><h2>${esc(t("leadsTitle"))}</h2></div></div><div id="leads" class="list"></div>` : ""}`;
+  ${mine ? `<div class="section-head"><div><h2>${esc(t("leadsTitle"))}</h2></div></div><div id="leads" class="list"></div>` : ""}
+  ${c.status === "open" ? otherSitesPanel(c) : ""}`;
 
   app.querySelectorAll(".thumbs button").forEach(b => b.addEventListener("click", () => {
     const p = photos[+b.dataset.i]; const img = document.querySelector("#mainPhoto img"); if (img && p) img.src = p;
@@ -873,6 +931,39 @@ async function viewCase(id) {
   if (mine) wireOwner(c); else if (!c.example) wireContact(c);
   await drawMatches(c, mine);
   if (mine) await drawLeads(c);
+}
+
+// Ready-made searches on other sites where people in Saudi Arabia post lost and found pets.
+// Each link only opens that site's own search page in a new tab; nothing from the post is sent anywhere.
+const SP_WORDS = {
+  cat: { lostAr: "قطة مفقودة", foundAr: "قطة معثور عليها", en: "cat" },
+  dog: { lostAr: "كلب مفقود", foundAr: "كلب معثور عليه", en: "dog" },
+  bird: { lostAr: "طائر مفقود", foundAr: "طائر معثور عليه", en: "bird" },
+  other: { lostAr: "حيوان أليف مفقود", foundAr: "حيوان أليف معثور عليه", en: "pet" },
+};
+function otherSiteLinks(c) {
+  const w = SP_WORDS[c.species] || SP_WORDS.other;
+  const want = c.kind === "lost" ? "found" : "lost"; // a lost pet is looked for among found posts, and the other way round
+  const cc = CITIES.find(x => x.id === c.city && x.id !== "other");
+  const arQ = [want === "found" ? w.foundAr : w.lostAr, cc ? cc.ar : ""].filter(Boolean).join(" ");
+  const enQ = [want, w.en, cc ? cc.en : "Saudi Arabia"].join(" ");
+  const tag = (want === "found" ? w.foundAr : w.lostAr).replace(/\s+/g, "_");
+  const e = encodeURIComponent;
+  return [
+    { id: "haraj", name: t("siteHaraj"), href: `https://haraj.com.sa/search/${e(arQ)}` },
+    { id: "instagram", name: "Instagram", href: `https://www.instagram.com/explore/tags/${e(tag)}/` },
+    { id: "x", name: "X", href: `https://x.com/search?q=${e(`(${arQ}) OR (${enQ})`)}&f=live` },
+    { id: "facebook", name: "Facebook", href: `https://www.facebook.com/search/posts/?q=${e(arQ)}` },
+    { id: "tiktok", name: "TikTok", href: `https://www.tiktok.com/search?q=${e(arQ)}` },
+    { id: "expatriates", name: "Expatriates.com", href: `https://www.google.com/search?q=${e("site:expatriates.com " + enQ)}&tbs=qdr:m` },
+    { id: "google", name: "Google", href: `https://www.google.com/search?q=${e(`${arQ} OR ${enQ}`)}&tbs=qdr:m` },
+  ];
+}
+function otherSitesPanel(c) {
+  return `<div class="panel stack other-sites" id="otherSites"><h3>${icon("search")} ${esc(t("otherSitesTitle"))}</h3>
+    <p class="muted" style="margin:0">${esc(t(c.kind === "lost" ? "otherSitesLost" : "otherSitesFound"))}</p>
+    <div class="row">${otherSiteLinks(c).map(l => `<a class="btn sm" target="_blank" rel="noopener noreferrer" data-site="${l.id}" href="${esc(l.href)}">${esc(l.name)}</a>`).join("")}</div>
+    <small class="muted">${esc(t("otherSitesNote"))}</small></div>`;
 }
 
 function ownerPanel(c) {

@@ -1,6 +1,6 @@
 // Privacy notice and terms (Arabic + English), written for the Saudi Personal Data Protection Law (PDPL).
 // Change NOTICE_VERSION whenever the meaning changes: signed-in users are then asked to accept again.
-export const NOTICE_VERSION = "2026-11-24";
+export const NOTICE_VERSION = "2026-11-25";
 
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -23,7 +23,7 @@ export function privacyHtml(lang, cfg) {
   <h2>الأساس النظامي</h2><p>نعالج بياناتك بناءً على موافقتك: عند إنشاء الحساب، وعند نشر كل منشور، وبموافقة منفصلة لإظهار رقم واتساب. يمكنك سحب موافقتك في أي وقت من «حسابي».</p>
   <h2>من يرى البيانات أو يعالجها</h2>
   <ul><li><b>العامة:</b> محتوى منشوراتك فقط (بدون بريدك).</li>
-  <li><b>مقدمو الخدمة نيابة عنا:</b> Supabase (قاعدة البيانات وتخزين الصور)، Google (تسجيل الدخول)، Cloudflare (استضافة الموقع وإحصاءات الزيارات بدون ملفات تعريف الارتباط: تُحسب الزيارات بشكل إجمالي دون التعرف عليك). وعند استخدام الخريطة أو الذكاء الاصطناعي يحمّل متصفحك صور الخرائط من OpenStreetMap ونموذج الذكاء الاصطناعي من Hugging Face وjsDelivr دون إرسال بياناتك الشخصية.</li>
+  <li><b>مقدمو الخدمة نيابة عنا:</b> Supabase (قاعدة البيانات وتخزين الصور)، Google (تسجيل الدخول)، Cloudflare (استضافة الموقع وإحصاءات الزيارات بدون ملفات تعريف الارتباط: تُحسب الزيارات بشكل إجمالي دون التعرف عليك). وعند استخدام الخريطة أو الذكاء الاصطناعي يحمّل متصفحك صور الخرائط من OpenStreetMap ونموذج الذكاء الاصطناعي من Hugging Face وjsDelivr دون إرسال بياناتك الشخصية. وإذا بحثت عن عنوان، يرسل متصفحك الكلمات التي كتبتها أو نقطة الخريطة إلى خدمة Nominatim التابعة لـ OpenStreetMap لإيجاد المكان، دون اسمك أو بريدك. ولا يُستخدم موقع جهازك إلا إذا ضغطت «استخدم موقعي» ووافقت في المتصفح، ويُستخدم فقط لوضع الدبوس الذي يمكنك تحريكه أو إزالته قبل النشر.</li>
   <li><b>المشرفون:</b> يطّلعون على المنشورات والرسائل المبلّغ عنها فقط للتحقق من البلاغ.</li></ul>
   <h2>النقل خارج المملكة</h2><p>تُحفظ البيانات على خوادم Supabase في ${region}، أي خارج المملكة. ننقل فقط الحد الأدنى اللازم لتقديم الخدمة لك، ونعتمد الضمانات التي تتطلبها لائحة نقل البيانات الشخصية خارج المملكة.</p>
   <h2>مدة الاحتفاظ</h2><ul><li>تُغلق المنشورات المفتوحة تلقائياً بعد 120 يوماً.</li><li>تُحذف المنشورات المغلقة أو التي عاد أصحابها، والرسائل والبلاغات، بعد 365 يوماً.</li><li>يمكنك حذف أي منشور أو حسابك كاملاً في أي وقت.</li><li>يُحتفظ بسجل إجراءات الخصوصية 5 سنوات دون بيانات أخرى، لإثبات الالتزام.</li></ul>
@@ -48,7 +48,7 @@ export function privacyHtml(lang, cfg) {
   <h2>Legal basis</h2><p>We process your data with your consent: when you create your account, each time you publish a post, and separately if you choose to show a WhatsApp number. You can withdraw consent at any time in My account.</p>
   <h2>Who sees or handles it</h2>
   <ul><li><b>The public:</b> only the content of your posts (never your email).</li>
-  <li><b>Service providers working for us:</b> Supabase (database and photo storage), Google (sign-in), Cloudflare (website hosting, and visit statistics without cookies: visits are counted in total, without identifying you). When you use the map or AI photo search, your browser downloads map images from OpenStreetMap and the AI model from Hugging Face and jsDelivr; no personal data is sent to them.</li>
+  <li><b>Service providers working for us:</b> Supabase (database and photo storage), Google (sign-in), Cloudflare (website hosting, and visit statistics without cookies: visits are counted in total, without identifying you). When you use the map or AI photo search, your browser downloads map images from OpenStreetMap and the AI model from Hugging Face and jsDelivr; no personal data is sent to them. If you search for an address, your browser sends the words you typed, or the map point, to OpenStreetMap's Nominatim service to find the place, without your name or email. Your device location is used only if you press "Use my location" and allow it in your browser, and only to place the pin, which you can move or remove before publishing.</li>
   <li><b>Moderators:</b> see reported posts and messages only to check a report.</li></ul>
   <h2>Transfers outside Saudi Arabia</h2><p>Data is stored on Supabase servers in ${region}, which is outside the Kingdom. We transfer only the minimum needed to provide the service to you, with the safeguards required by the Saudi regulation on transferring personal data outside the Kingdom.</p>
   <h2>How long we keep it</h2><ul><li>Open posts close automatically after 120 days.</li><li>Closed or reunited posts, messages and reports are deleted after 365 days.</li><li>You can delete any post, or your whole account, at any time.</li><li>A log of privacy actions is kept for 5 years, with no other data, to prove compliance.</li></ul>

@@ -199,6 +199,10 @@ fieldset.step { display: grid; gap: 18px; padding: 22px; border: 1px solid var(-
 fieldset.step[hidden] { display: none; }
 legend { font-family: var(--display); font-weight: 600; font-size: 1.25rem; padding: 0; float: left; width: 100%; }
 .fieldset-q { font-weight: 600; font-size: .95rem; margin-bottom: -10px; }
+/* The map is not a row of chips: keep a clear gap under its question so the text is never covered. */
+#pinWrap { display: flex; flex-direction: column; gap: 10px; }
+#pinWrap .fieldset-q { margin-bottom: 0; line-height: 1.4; }
+#pinWrap .map { margin-bottom: 0; position: relative; isolation: isolate; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { display: inline-flex; font-weight: 500; position: relative; }
 .chip input { position: absolute; opacity: 0; width: 1px; height: 1px; min-height: 0; }
@@ -410,3 +414,18 @@ table.legal th { background: var(--surface-2); }
 .install-card > div { flex: 1; display: flex; flex-direction: column; font-size: .92rem; }
 .install-card > div span { color: var(--muted); }
 .install-card .icon-btn { flex: none; width: 44px; height: 44px; border: 0; background: transparent; color: var(--muted); border-radius: 50%; display: grid; place-items: center; cursor: pointer; }
+
+/* address search (report step 3) */
+.addr { display: flex; flex-direction: column; gap: 8px; }
+.addr-row { display: flex; gap: 8px; }
+.addr-row input { flex: 1; min-width: 0; }
+.addr-row .btn, #useLoc { min-height: 44px; }
+#useLoc { align-self: flex-start; }
+.addr-res { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.addr-opt { width: 100%; display: flex; gap: 8px; align-items: flex-start; text-align: start; padding: 10px 12px; min-height: 44px;
+  border: 1px solid var(--line, #ddd); border-radius: 10px; background: var(--surface); color: inherit; font: inherit; cursor: pointer; }
+.addr-opt:hover, .addr-opt:focus-visible { border-color: var(--brand, #0a7); }
+.addr-opt .ic { flex: none; margin-top: 2px; }
+#addrMsg:empty { display: none; }
+.addr small, .other-sites small { line-height: 1.4; }
+.other-sites h3 { display: flex; gap: 6px; align-items: center; }

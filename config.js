@@ -7,7 +7,7 @@ window.LPF_CONFIG = {
   supabaseUrl: "https://bpgplywscvfwfqdhwgfk.supabase.co",
   supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwZ3BseXdzY3Zmd2ZxZGh3Z2ZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2MDMxODcsImV4cCI6MjExMTE3OTE4N30.hRSRX05Y25wYalz3j3G0sEd7IuEcD4q2p29_BRGMSps",
   // The public address of the site once it is online, used in posters and share links (optional).
-  siteUrl: "",
+  siteUrl: "https://lost-pet-finder-ksa.pages.dev",
   // Shown in the Privacy notice (PDPL: who runs the service and how to reach them). Fill these in before launch.
   operatorName: "Lost Pet Finder",
   contactEmail: "imranabro095@hotmail.com",

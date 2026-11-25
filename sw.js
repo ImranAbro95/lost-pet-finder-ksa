@@ -1,8 +1,8 @@
 // Service worker: lets people install the site like an app and open it with a weak connection.
 // Network first (so updates appear straight away), saved copy only when offline. Only this site's own files are saved;
 // the database, photos and sign-in always go to the network.
-const CACHE = "lpf-v1";
-const SHELL = ["/", "/index.html", "/styles.css", "/config.js", "/app.js", "/i18n.js", "/data.js", "/guard.js", "/match.js", "/ai.js",
+const CACHE = "lpf-v2";
+const SHELL = ["/", "/index.html", "/styles.css", "/config.js", "/app.js", "/i18n.js", "/data.js", "/guard.js", "/geo.js", "/match.js", "/ai.js",
   "/poster.js", "/icons.js", "/legal.js", "/icon.svg", "/manifest.webmanifest", "/icons/icon-192.png"];
 
 self.addEventListener("install", e => {
