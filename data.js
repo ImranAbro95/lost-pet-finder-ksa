@@ -22,11 +22,18 @@ class SupabaseStore {
 
   async init() {
     const { createClient } = await import(SUPABASE_ESM);
+    // PKCE flow: Google sends people back with ?code=... in the query string, which does not clash with the
+    // site's #page addresses (the older token-in-#hash flow did, and sign-in was silently lost).
     this.sb = createClient(this.cfg.supabaseUrl, this.cfg.supabaseAnonKey, {
-      auth: { persistSession: true, autoRefreshToken: true }
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "pkce" }
     });
+    const q = new URLSearchParams(location.search);
+    this.authError = q.get("error_description") || q.get("error") || null;
+    const returning = q.has("code") || !!this.authError;
     const { data } = await this.sb.auth.getSession();
     if (data && data.session) { this.uid = data.session.user.id; this.email = data.session.user.email || null; }
+    this.justSignedIn = returning && !!this.uid;
+    if (returning) { try { history.replaceState(null, "", location.pathname + (location.hash || "")); } catch (e) { /* optional */ } }
   }
 
   // Browsing is open to everyone; posting, messaging and marking need a signed-in account.
@@ -37,7 +44,7 @@ class SupabaseStore {
 
   async signInGoogle(returnHash) {
     const { error } = await this.sb.auth.signInWithOAuth({ provider: "google",
-      options: { redirectTo: location.origin + location.pathname + (returnHash || "#home"), queryParams: { prompt: "select_account" } } });
+      options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: "select_account" } } });
     if (error) throw error;
   }
   async signOut() { await this.sb.auth.signOut(); this.uid = null; this.email = null; this._profile = null; }

@@ -1100,6 +1100,12 @@ async function viewMine() {
   lang = saved || ((navigator.language || "").toLowerCase().startsWith("ar") ? "ar" : "en");
   try { store = await openStore(cfg); }
   catch (e) { console.error(e); app.innerHTML = `<p class="err">${esc(STRINGS[lang].errSave)}</p>`; return; }
+  // Back from Google: continue to the consent step (new users) or to the page they wanted.
+  if (store.justSignedIn) {
+    let dest = "#consent";
+    try { const p = await store.getProfile(); if (p && p.accepted_at && p.privacy_version === NOTICE_VERSION && p.is_adult) dest = takeNext(); } catch (e) { /* show consent */ }
+    try { history.replaceState(null, "", location.pathname + dest); } catch (e) { location.hash = dest; }
+  }
   setLang(lang);
   document.getElementById("langBtn").onclick = () => { setLang(lang === "ar" ? "en" : "ar"); refreshHeader(); route(); };
   // Text size: normal → large → extra large (remembered on this device).
@@ -1116,6 +1122,7 @@ async function viewMine() {
   window.addEventListener("hashchange", () => { route(); window.scrollTo(0, 0); });
   route();
   updateBadge();
+  if (store.authError) toast(t("errSignin") + " (" + String(store.authError).slice(0, 80) + ")");
   if ("serviceWorker" in navigator && location.protocol === "https:" && window.top === window) navigator.serviceWorker.register("/sw.js").catch(() => { /* optional */ });
   if (cfg.analyticsToken) { // Cloudflare Web Analytics: no cookies, counts visits in total
     const s = document.createElement("script"); s.defer = true; s.src = "https://static.cloudflareinsights.com/beacon.min.js";
