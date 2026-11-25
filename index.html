@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lost Pet Finder KSA</title>
+<meta name="description" content="Post a lost or found pet in Saudi Arabia and get matched with the owner or finder. Arabic and English, free.">
+<meta name="theme-color" content="#0B4F55">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pet Finder">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- Link preview for WhatsApp, X, Facebook, Telegram. On Cloudflare the "data-abs" values become full addresses automatically (functions/_middleware.js). -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Lost Pet Finder KSA">
+<meta property="og:title" content="Lost Pet Finder KSA – مفقودات الحيوانات الأليفة">
+<meta property="og:description" content="Lost or found a pet in Saudi Arabia? Post it free in Arabic or English. AI matches lost and found pets. فقدت حيوانك أو وجدت حيواناً؟ انشره مجاناً.">
+<meta property="og:image" content="/og.png" data-abs>
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Lost Pet Finder KSA">
+<meta property="og:url" content="/" data-abs>
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#app" data-t="skip">Skip to content</a>
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="#home"><img src="icon.svg" alt="" width="34" height="34"><span id="brandName">Lost Pet Finder KSA</span></a>
+    <nav class="nav" aria-label="Main">
+      <a href="#home" data-nav="home" data-t="navHomeShort">Home</a>
+      <a href="#browse-lost" data-nav="browse-lost" data-t="navLost">Lost pets</a>
+      <a href="#browse-found" data-nav="browse-found" data-t="navFound">Found pets</a>
+      <a href="#mine" data-nav="mine" data-t="navMine">My posts</a>
+    </nav>
+    <div class="tools">
+      <button class="tsize" id="sizeBtn" type="button" aria-label="Text size"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18L8.5 6h1L14 18M5.6 14h6.8M15 18l3-7.5h.5L21.5 18M15.9 15.8h4.2"/></svg><span class="tool-label" id="sizeLabel">Text</span></button>
+      <button class="lang" id="langBtn" type="button">العربية</button>
+    </div>
+  </div>
+</header>
+<div class="demo-bar" id="demoBar" hidden></div>
+<main id="app" class="wrap" tabindex="-1"><p class="muted">Loading…</p></main>
+<footer class="foot wrap">
+  <p id="safetyLine" class="muted"></p>
+  <p><b id="privacyTitle"></b> <span id="privacyText" class="muted"></span></p>
+</footer>
+<nav class="tabbar" aria-label="Main">
+  <a href="#home" data-nav="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span data-t="navHomeShort">Home</span></a>
+  <a href="#browse-lost" data-nav="browse-lost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5"/></svg><span data-t="navLostShort">Lost pets</span></a>
+  <a href="#browse-found" data-nav="browse-found"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg><span data-t="navFoundShort">Found pets</span></a>
+  <a href="#mine" data-nav="mine"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span data-t="navMine">My posts</span></a>
+</nav>
+<div class="toast" id="toast" role="status"></div>
+<script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" defer></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

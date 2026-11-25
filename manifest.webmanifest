@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "Lost Pet Finder KSA – مفقودات الحيوانات الأليفة",
+  "short_name": "Pet Finder",
+  "description": "Post a lost or found pet in Saudi Arabia and get matched. Free, Arabic and English.",
+  "lang": "en",
+  "dir": "auto",
+  "start_url": "/#home",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F7F9",
+  "theme_color": "#0B4F55",
+  "categories": ["lifestyle", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "I lost my pet", "short_name": "Lost", "url": "/#report-lost", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "I found a pet", "short_name": "Found", "url": "/#report-found", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Make a poster", "short_name": "Poster", "url": "/#poster", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
