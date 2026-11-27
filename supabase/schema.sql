@@ -256,19 +256,53 @@ $job$);
 -- 10. Abuse protection (also checked in the site, guard.js):
 --     a) no phone numbers in public text fields (they bypass the WhatsApp consent tick and attract scammers);
 --     b) daily limits per person: 5 posts, 40 messages, 10 reports. The admin is not limited.
+-- The phone check understands the same tricks as guard.js (keep both in step): Arabic-Indic, Persian and full-width digits,
+-- invisible characters, separators (space . - ( ) _ / , * # – —), number words in English and Arabic, and O / l used for 0 / 1.
+-- Dates (24/11/2026) and times (10:30) are set aside first so they are never mistaken for a number.
+create or replace function public.phone_text(t text) returns text language plpgsql immutable set search_path = public as $$
+declare s text; prev text; w text[];
+begin
+  if t is null then return ''; end if;
+  s := lower(translate(t, '٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹０１２３４５６７８９إأآة', '012345678901234567890123456789اااه'));
+  s := regexp_replace(s, '[​-‍⁠﻿]', '', 'g');
+  foreach w slice 1 in array array[
+    ['zero|oh','0'],['one','1'],['two','2'],['three','3'],['four','4'],['five','5'],['six','6'],['seven','7'],['eight','8'],['nine','9'],
+    ['صفر','0'],['واحد|واحده','1'],['اثنين|اثنان|اثنتين|اثنتان','2'],['ثلاثه|ثلاث','3'],['اربعه|اربع','4'],['خمسه|خمس','5'],
+    ['سته|ست','6'],['سبعه|سبع','7'],['ثمانيه|ثماني|ثمان','8'],['تسعه|تسع','9']] loop
+    s := regexp_replace(s, '(^|[^a-z؀-ۿ])(?:' || w[1] || ')(?=[^a-z؀-ۿ]|$)', '\1' || w[2], 'g');
+  end loop;
+  loop
+    prev := s;
+    s := regexp_replace(regexp_replace(s, '(\d)o', '\10', 'g'), 'o(?=\d)', '0', 'g');
+    s := regexp_replace(regexp_replace(s, '(\d)[il|]', '\11', 'g'), '[il|](?=\d)', '1', 'g');
+    exit when s = prev;
+  end loop;
+  s := regexp_replace(s, '(^|\D)\d{1,4}[/.-]\d{1,2}[/.-]\d{2,4}(?!\d)', '\1 date ', 'g');
+  s := regexp_replace(s, '(^|\D)\d{1,2}:\d{2}(?!\d)', '\1 time ', 'g');
+  return regexp_replace(s, '(\d)[[:space:].()_/,*#–—-]+(?=\d)', '\1', 'g');
+end $$;
+
 create or replace function public.has_phone(t text) returns boolean language sql immutable set search_path = public as $$
-  select coalesce(
-    regexp_replace(translate(t, '٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹', '01234567890123456789'), '(\d)[[:space:].()-]+(?=\d)', '\1', 'g')
-      ~ '(^|\D)((\+|00)?966|0)?5\d{8}(\D|$)|(\+|(^|\D)00)\d{9,14}(\D|$)|(^|\D)0[1-9]\d{7,9}(\D|$)',
-    false)
+  select coalesce(public.phone_text(t) ~ '(^|\D)((\+|00)?966|0)?5\d{8}(\D|$)|(\+|(^|\D)00)\d{9,14}(\D|$)|(^|\D)0[1-9]\d{7,9}(\D|$)', false)
 $$;
+
+-- Digits at the start and end of a field, so a number split across fields (breed "055", marks "123", description "4567") is caught.
+create or replace function public.phone_edges(t text) returns text language plpgsql immutable set search_path = public as $$
+declare s text := btrim(public.phone_text(t));
+begin
+  if s ~ '^\+?\d+$' then return s; end if;
+  return concat_ws(' ', substring(s from '^\+?\d+'), substring(s from '\d+$'));
+end $$;
 
 create or replace function public.guard_case() returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if tg_op = 'INSERT' or (new.pet_name, new.breed, new.colors, new.eye_color, new.markings, new.description, new.district, new.reward)
        is distinct from (old.pet_name, old.breed, old.colors, old.eye_color, old.markings, old.description, old.district, old.reward) then
     if public.has_phone(new.pet_name) or public.has_phone(new.breed) or public.has_phone(new.colors) or public.has_phone(new.eye_color)
-       or public.has_phone(new.markings) or public.has_phone(new.description) or public.has_phone(new.district) or public.has_phone(new.reward) then
+       or public.has_phone(new.markings) or public.has_phone(new.description) or public.has_phone(new.district) or public.has_phone(new.reward)
+       or public.has_phone(concat_ws(' ', nullif(public.phone_edges(new.pet_name), ''), nullif(public.phone_edges(new.breed), ''), nullif(public.phone_edges(new.colors), ''),
+            nullif(public.phone_edges(new.eye_color), ''), nullif(public.phone_edges(new.markings), ''), nullif(public.phone_edges(new.description), ''),
+            nullif(public.phone_edges(new.district), ''), nullif(public.phone_edges(new.reward), ''))) then
       raise exception 'phone_in_text' using hint = 'Put the number in the WhatsApp field instead.';
     end if;
   end if;

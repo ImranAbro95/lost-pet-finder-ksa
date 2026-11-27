@@ -8,17 +8,22 @@ const ROOT=path.resolve(process.env.LPF_ROOT||path.join(__dirname,'..'));
 const PORT=+(process.env.LPF_PORT||8765);
 const BASE=`http://localhost:${PORT}/`;
 const TYPES={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.webmanifest':'application/manifest+json','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml'};
+// Security headers: the server sends the "/*" rules from repo/_headers (as Cloudflare Pages does), so every check runs under the real CSP.
+function readHeaders(){ const f=path.join(ROOT,'repo','_headers'); if(!fs.existsSync(f)) return null; const out={}; let on=false;
+  for(const line of fs.readFileSync(f,'utf8').split('\n')){ if(/^\s*#/.test(line)||!line.trim()) continue; if(!/^\s/.test(line)){ on=line.trim()==='/*'; continue; }
+    if(on){ const i=line.indexOf(':'); out[line.slice(0,i).trim()]=line.slice(i+1).trim(); } } return out; }
+const SEC=readHeaders()||{}; const cspErrs=[];
 const server=http.createServer((req,res)=>{ let u=decodeURIComponent(req.url.split('?')[0]); if(u==='/') u='/index.html';
   let f=path.join(ROOT,u); if(u==='/index.html' && fs.existsSync(path.join(ROOT,'repo','index.html'))) f=path.join(ROOT,'repo','index.html');
   if(!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()){ res.writeHead(404); return res.end('not found'); }
-  res.writeHead(200,{'content-type':TYPES[path.extname(f)]||'application/octet-stream'}); fs.createReadStream(f).pipe(res); });
+  res.writeHead(200,{...SEC,'content-type':TYPES[path.extname(f)]||'application/octet-stream'}); fs.createReadStream(f).pipe(res); });
 const results=[]; const R=(area,name,ok,note='')=>{results.push({area,name,ok:!!ok,note:String(note).slice(0,160)}); };
 (async()=>{
 await new Promise(r=>server.listen(PORT,r));
 const b=await chromium.launch();
 try{
-async function newPage(opts={}){ const ctx=await b.newContext({viewport:{width:390,height:844},acceptDownloads:true,...opts}); await ctx.grantPermissions(['clipboard-read','clipboard-write'],{origin:BASE.slice(0,-1)});
-  const p=await ctx.newPage(); p.setDefaultTimeout(6000); p._errs=[]; p.on('pageerror',e=>p._errs.push(e.message)); p.on('dialog',d=>{p._dialog=true; d.dismiss();});
+async function newPage(opts={}){ const ctx=await b.newContext({viewport:{width:390,height:844},acceptDownloads:true,...opts}); await ctx.grantPermissions(['clipboard-read','clipboard-write',...(opts.permissions||[])],{origin:BASE.slice(0,-1)});
+  const p=await ctx.newPage(); p.setDefaultTimeout(6000); p._errs=[]; p.on('pageerror',e=>p._errs.push(e.message)); p.on('console',m=>{ if(/Content Security Policy/i.test(m.text())) cspErrs.push(m.text()); }); p.on('dialog',d=>{p._dialog=true; d.dismiss();});
   await p.route(/^https:\/\//,r=>r.abort()); return p; }
 const go=async(p,h,wait=600)=>{ await p.goto(BASE+h); await p.waitForTimeout(wait); };
 const H=p=>p.evaluate(()=>location.hash);
@@ -219,6 +224,18 @@ R('Accessibility','first Tab reaches "Skip to content"', firstFocus.includes('sk
   const first=(await H(q)).slice(6); R('Anti-spam','dates, times and microchip numbers are allowed', first.length>2, await H(q));
   await go(q,'#edit-'+first,500); await q.fill('#e_description','new number 0551234567'); await q.click('button:has-text("Save changes")'); await q.waitForTimeout(300);
   R('Anti-spam','editing a post also refuses phone numbers', (await q.textContent('#eErr')).includes('phone number'));
+  // hardened filter (B20261124143043): tricks that must be caught, and normal text that must still pass (lesson L002)
+  { const g=await import('file://'+path.join(ROOT,'guard.js'));
+    const block=['call 055_123_4567','call 055/123/4567','call 055–123–4567','call 055\u200b123\u200b4567','call ０５５１２３４５６７','call zero five five one two three four five six seven','اتصل صفر خمسة خمسة واحد اثنين ثلاثة اربعة خمسة ستة سبعة','call 055 123 four five six seven','call O55l234567'];
+    const allow=['Seen 24/11/2026 10:30','born 12/05/2023','reward 1000 SAR','Microchip 900123456789012','lost on 2026-11-20 at 14:30','five kittens, two are white','05/11/2026 10:30'];
+    const missed=block.filter(x=>!g.hasPhone(x)), wrong=allow.filter(x=>g.hasPhone(x));
+    R('Anti-spam','phone filter catches separators, invisible characters, full-width digits, number words (EN+AR) and O/l look-alikes', !missed.length, missed.join(' | '));
+    R('Anti-spam','phone filter still allows dates, times, rewards, microchips and small numbers in words', !wrong.length, wrong.join(' | '));
+    R('Anti-spam','a number split across fields is caught, normal fields are not', g.rowHasPhone({breed:'055',colors:'white',markings:'123',description:'4567 whatsapp'}) && !g.rowHasPhone({description:'5 kittens, 3 white paws',reward:'1000 SAR',district:'Exit 5'}) && !g.rowHasPhone({breed:'Persian',district:'Hittin',reward:'1000 SAR',description:'Seen 24/11/2026 10:30'})); }
+  await go(q,'#edit-'+first,500); await q.fill('#e_breed','055'); await q.fill('#e_markings','123'); await q.fill('#e_description','4567 whatsapp'); await q.click('button:has-text("Save changes")'); await q.waitForTimeout(300);
+  R('Anti-spam','a phone number split across breed, marks and description is refused on the page', (await q.textContent('#eErr')).includes('phone number'));
+  await go(q,'#edit-'+first,500); await q.fill('#e_description','call zero five five one two three four five six seven'); await q.click('button:has-text("Save changes")'); await q.waitForTimeout(300);
+  R('Anti-spam','a phone number written in words is refused on the page', (await q.textContent('#eErr')).includes('phone number'));
   // daily post limit (5)
   for(let i=0;i<4;i++){ await post(q,'found',{district:'Olaya'}); }
   const mineCount=await q.evaluate(()=>JSON.parse(localStorage.getItem('lpf-demo-v1')).cases.filter(c=>c.owner_id==='demo-me').length);
@@ -256,6 +273,70 @@ R('Accessibility','first Tab reaches "Skip to content"', firstFocus.includes('sk
   R('Analytics','statistics script added (no cookies) when a token is set', tag.includes('tok123'), tag);
   const cookies=await q.context().cookies(); R('Analytics','site sets no cookies', cookies.length===0, cookies.map(c=>c.name).join());
 }
+
+// ---------- 17. Address search, my location, map pick ----------
+{ const q=await newPage({geolocation:{latitude:24.7744,longitude:46.6181},permissions:['geolocation']}); let geoReq=[];
+  await q.route(/nominatim\.openstreetmap\.org/,r=>{ const u=new URL(r.request().url()); geoReq.push(u.pathname+u.search);
+    if(u.pathname.startsWith('/reverse')) return r.fulfill({contentType:'application/json',body:JSON.stringify({display_name:'Hittin, Riyadh, Saudi Arabia',lat:u.searchParams.get('lat'),lon:u.searchParams.get('lon'),address:{suburb:'Hittin',city:'Riyadh'}})});
+    const qq=u.searchParams.get('q')||'';
+    if(qq.includes('fail')) return r.fulfill({status:503,body:'busy'});
+    if(qq.includes('zzz')) return r.fulfill({contentType:'application/json',body:'[]'});
+    r.fulfill({contentType:'application/json',body:JSON.stringify([{display_name:'Al Malqa, Riyadh, Riyadh Region, Saudi Arabia',lat:'24.81052',lon:'46.61234',address:{suburb:'Al Malqa',city:'Riyadh'}},{display_name:'Al Malqa Park, Jeddah',lat:'21.5',lon:'39.2',address:{suburb:'Al Malqa',city:'Jeddah'}}])}); });
+  await fresh(q); await signin(q);
+  await go(q,'#report-lost',400); await q.setInputFiles('#photos','c2.jpg'); await q.click('#nextBtn'); await q.waitForTimeout(150);
+  await q.click('label.chip:has-text("white")'); await q.click('#nextBtn'); await q.waitForTimeout(150);
+  R('Address','step 3 shows address box, Find and "Use my location"', await q.isVisible('#addrQ') && await q.isVisible('#addrGo') && await q.isVisible('#useLoc'));
+  await q.type('#addrQ','Malqa',{delay:40}); await q.waitForTimeout(400);
+  R('Address','typing alone sends nothing (no search-as-you-type)', geoReq.length===0, geoReq.join());
+  await q.press('#addrQ','Enter'); await q.waitForTimeout(500);
+  R('Address','Enter searches and stays on step 3', (await q.$$('#addrRes .addr-opt')).length===2 && await q.isVisible('#addrQ'));
+  R('Address','search is limited to Saudi Arabia and the chosen language', geoReq[0].includes('countrycodes=sa') && geoReq[0].includes('accept-language=en'), geoReq[0]);
+  await q.click('#addrRes .addr-opt >> nth=1'); await q.waitForTimeout(200);
+  const d1=await q.evaluate(()=>JSON.parse(localStorage.getItem('lpf-draft-lost')||'{}'));
+  R('Address','choosing a result sets the pin, district and city', d1.lat===21.5 && d1.lng===39.2 && (await q.inputValue('#district'))==='Al Malqa' && (await q.inputValue('#city'))==='jeddah', JSON.stringify(d1));
+  R('Address','results list closes and confirms the pin', await q.isHidden('#addrRes') && (await q.textContent('#addrMsg')).includes('Pin placed'));
+  await q.fill('#addrQ','zzz nowhere'); await q.click('#addrGo'); await q.waitForTimeout(1500);
+  R('Address','no results gives a helpful message', (await q.textContent('#addrMsg')).includes('No places found'));
+  await q.fill('#addrQ','fail'); await q.click('#addrGo'); await q.waitForTimeout(1500);
+  R('Address','service down gives a friendly fallback message', (await q.textContent('#addrMsg')).includes('Tap the map'));
+  const t0=geoReq.length; R('Address','requests are spaced at least 1 second apart (OpenStreetMap rule)', t0===3);
+  await q.fill('#district','My own street'); await q.click('#useLoc'); await q.waitForTimeout(1800);
+  const d2=await q.evaluate(()=>JSON.parse(localStorage.getItem('lpf-draft-lost')||'{}'));
+  R('Address','"Use my location" places the pin at the device location', d2.lat===24.7744 && d2.lng===46.6181, JSON.stringify(d2));
+  R('Address','a district the person typed is never overwritten', (await q.inputValue('#district'))==='My own street');
+  await q.fill('#district',''); await q.click('#useLoc'); await q.waitForTimeout(1800);
+  R('Address','an empty district is filled from the location', (await q.inputValue('#district'))==='Hittin' && (await q.inputValue('#city'))==='riyadh');
+  R('Address','buttons are big enough to tap', await q.$$eval('#addrGo,#useLoc',b=>b.every(x=>x.getBoundingClientRect().height>=44)));
+  await q.click('#nextBtn'); await q.waitForTimeout(150); await q.check('#consent'); await q.click('#nextBtn'); await q.waitForTimeout(2200);
+  const cid=(await H(q)).slice(6); const saved=await q.evaluate(id=>JSON.parse(localStorage.getItem('lpf-demo-v1')).cases.find(c=>c.id===id),cid);
+  R('Address','published post keeps the pin', saved && saved.lat===24.7744 && saved.lng===46.6181, JSON.stringify(saved&&{lat:saved.lat,lng:saved.lng}));
+  // other websites
+  const links=await q.$$eval('#otherSites a',a=>a.map(x=>({s:x.dataset.site,h:x.href,t:x.target,r:x.rel})));
+  const by=Object.fromEntries(links.map(l=>[l.s,decodeURIComponent(l.h)]));
+  R('Other sites','lost post offers Haraj, Instagram, X, Facebook, TikTok, Expatriates and Google', ['haraj','instagram','x','facebook','tiktok','expatriates','google'].every(k=>by[k]), Object.keys(by).join());
+  R('Other sites','a lost post searches for FOUND pets in its city', by.haraj==='https://haraj.com.sa/search/قطة معثور عليها الرياض' && by.instagram.includes('/explore/tags/قطة_معثور_عليها/') && by.x.includes('found cat Riyadh'), by.haraj+' '+by.instagram);
+  R('Other sites','Expatriates search is limited to expatriates.com and the last month', by.expatriates.includes('site:expatriates.com') && by.expatriates.includes('tbs=qdr:m'));
+  R('Other sites','links open in a new tab and send nothing back', links.every(l=>l.t==='_blank' && l.r.includes('noopener') && l.r.includes('noreferrer')) && links.every(l=>!l.h.includes(cid)));
+  await go(q,'#case-ex2',700); const fh=await q.$eval('#otherSites a[data-site="haraj"]',a=>decodeURIComponent(a.href)).catch(()=>'');
+  R('Other sites','a found post searches for LOST pets', fh.includes('مفقود'), fh);
+  await q.evaluate(()=>localStorage.setItem('lpf-lang','ar')); await q.reload(); await q.waitForTimeout(700);
+  R('Other sites','panel is translated into Arabic', (await q.textContent('#otherSites h3')).includes('ابحث في مواقع أخرى') && (await q.textContent('#otherSites')).includes('حراج'));
+  R('Address','no page errors', q._errs.length===0, q._errs.join(';'));
+}
+
+// ---------- 13b. Security headers (repo/_headers + functions/_middleware.js) ----------
+{ const need=['Strict-Transport-Security','X-Content-Type-Options','Referrer-Policy','Permissions-Policy','X-Frame-Options','Content-Security-Policy'];
+  R('Security headers','_headers sets HSTS, nosniff, referrer, permissions, frame and CSP headers', need.every(k=>SEC[k]), need.filter(k=>!SEC[k]).join());
+  const csp=SEC['Content-Security-Policy']||''; const dir=Object.fromEntries(csp.split(';').map(x=>x.trim().split(/\s+/)).filter(x=>x[0]).map(([k,...v])=>[k,v]));
+  R('Security headers','CSP blocks framing, plugins and inline/eval scripts', (dir['frame-ancestors']||[]).join()==="'none'" && (dir['object-src']||[]).join()==="'none'" && SEC['X-Frame-Options']==='DENY' && !(dir['script-src']||[]).some(v=>v==="'unsafe-inline'"||v==="'unsafe-eval'"), csp.slice(0,120));
+  const hosts={'script-src':['https://cdnjs.cloudflare.com','https://cdn.jsdelivr.net','https://static.cloudflareinsights.com'],'style-src':['https://fonts.googleapis.com'],'font-src':['https://fonts.gstatic.com'],'img-src':['https://tile.openstreetmap.org','https://*.supabase.co'],'connect-src':['https://*.supabase.co','https://huggingface.co','https://nominatim.openstreetmap.org','https://cdn.jsdelivr.net']};
+  const miss=Object.entries(hosts).flatMap(([d,hs])=>hs.filter(h=>!(dir[d]||[]).includes(h)).map(h=>d+' '+h));
+  R('Security headers','CSP allows every outside service the site uses (CDNs, fonts, map tiles, Supabase, AI model, address search)', !miss.length, miss.join(', '));
+  R('Security headers','camera and microphone are off; location only for this site', /camera=\(\)/.test(SEC['Permissions-Policy']||'') && /microphone=\(\)/.test(SEC['Permissions-Policy']||'') && /geolocation=\(self\)/.test(SEC['Permissions-Policy']||''));
+  let mw={}; try{ mw=(await import('file://'+path.join(ROOT,'repo','functions','_middleware.js'))).SECURITY_HEADERS||{}; }catch(e){}
+  R('Security headers','home-page function adds the same headers as _headers', need.every(k=>mw[k]===SEC[k]), need.filter(k=>mw[k]!==SEC[k]).join());
+  const r=await (await newPage()).goto(BASE); R('Security headers','test server really sends the CSP', (r.headers()['content-security-policy']||'')===csp);
+  R('Security headers','no page was blocked by the CSP during the whole test run', cspErrs.length===0, cspErrs.slice(0,2).join(' | ')); }
 
 // ---------- 14. AI fallback for a fresh visitor ----------
 R('AI','pages never crash when AI model is unavailable', p._errs.length===0, p._errs.join(';'));

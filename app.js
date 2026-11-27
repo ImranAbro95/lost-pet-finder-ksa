@@ -4,7 +4,7 @@ import { scoreMatch } from "./match.js";
 import { computeFingerprints, missingWork, photoMatchPct, BASIC_MODEL } from "./ai.js";
 import { renderPoster, canvasBlob, SIZES } from "./poster.js";
 import { icon, HERO_ART } from "./icons.js";
-import { hasPhone, errKind, LIMITS } from "./guard.js";
+import { hasPhone, rowHasPhone, errKind, LIMITS } from "./guard.js";
 import { NOTICE_VERSION, privacyHtml, termsHtml } from "./legal.js";
 import { searchPlaces, reversePlace, matchCity, myLocation } from "./geo.js";
 
@@ -214,7 +214,7 @@ async function viewEdit(id) {
     const wa = (v("public_whatsapp") || "").replace(/[^\d+]/g, "");
     const err = document.getElementById("eErr");
     if (wa && !document.getElementById("e_waOk").checked) { err.textContent = t("waConsentNeed"); err.hidden = false; return; }
-    if (["pet_name", "breed", "colors", "eye_color", "markings", "district", "description", "reward"].some(k => hasPhone(v(k)))) { err.textContent = t("errPhoneText"); err.hidden = false; return; }
+    if (rowHasPhone(Object.fromEntries(["pet_name", "breed", "colors", "eye_color", "markings", "district", "description", "reward"].map(k => [k, v(k)])))) { err.textContent = t("errPhoneText"); err.hidden = false; return; }
     const patch = { breed: v("breed") || null, colors: v("colors") || c.colors, eye_color: v("eye_color") || null, markings: v("markings") || null,
       district: v("district") || null, description: v("description") || null, public_whatsapp: wa || null };
     if (c.kind === "lost") { patch.pet_name = v("pet_name") || null; patch.reward = v("reward") || null; }
@@ -796,7 +796,7 @@ function viewReport(kind) {
     if (n === 3 && !msg && hasPhone(val("district"))) msg = t("errPhoneText");
     if (n === 4 && !document.getElementById("consent").checked) msg = t("errConsent");
     if (n === 4 && !msg && val("public_whatsapp") && !document.getElementById("waOk").checked) msg = t("waConsentNeed");
-    if (n === 4 && !msg && (hasPhone(val("description")) || hasPhone(val("reward")))) msg = t("errPhoneText");
+    if (n === 4 && !msg && rowHasPhone(Object.fromEntries(["pet_name", "breed", "colors", "eye_color", "markings", "district", "description", "reward"].map(k => [k, val(k)])))) msg = t("errPhoneText"); // also catches a number split across fields
     err.textContent = msg; err.hidden = !msg;
     if (msg) err.scrollIntoView({ block: "center", behavior: "smooth" });
     return !msg;

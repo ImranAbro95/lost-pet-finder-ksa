@@ -80,7 +80,20 @@ The anon key is meant to be public; the rules in `schema.sql` protect the data. 
 | `guard.js` | Spam limits and the phone-number filter for public text |
 | `sw.js`, `manifest.webmanifest`, `icons/` | "Add to home screen" (installable app) and offline start |
 | `og.png` | The picture shown when the site link is shared in WhatsApp, X, Facebook or Telegram |
+| `_headers` | Security headers Cloudflare adds to every page: HTTPS only (HSTS), no framing, no camera or microphone, and a Content-Security-Policy that lets the browser load only the outside services listed below |
 | `functions/`, `_routes.json` | Two small free Cloudflare functions: link previews for each post (`/p/<id>`) and full addresses for the home-page preview |
+
+## Security headers (`_headers`)
+
+Cloudflare Pages reads `_headers` automatically; nothing to switch on. It tells browsers to:
+
+- always use HTTPS (Strict-Transport-Security), never guess file types (nosniff), and send only the site address, not the full page address, to other sites (Referrer-Policy);
+- never show the site inside another site's frame (X-Frame-Options DENY, frame-ancestors 'none'), which stops click-jacking;
+- keep the camera and microphone off, and allow location only for this site (Permissions-Policy). Photo upload still works: choosing or taking a photo goes through the phone's own picker;
+- load code, styles, images and data only from the site itself and these services (Content-Security-Policy): cdnjs.cloudflare.com (map and QR code), cdn.jsdelivr.net (database library and AI), fonts.googleapis.com / fonts.gstatic.com (fonts), tile.openstreetmap.org (map images), nominatim.openstreetmap.org (address search), your Supabase project (`*.supabase.co`), huggingface.co / `*.hf.co` (AI model download) and static.cloudflareinsights.com / cloudflareinsights.com (visit statistics).
+
+The home page passes through `functions/_middleware.js`, so the same headers are also set there (`SECURITY_HEADERS`); keep both in step. The QA suite runs every check with these headers and fails if the browser blocks anything, or if the two copies differ.
+**If you ever add a new outside service, add its address to both places**, or the browser will block it. To check after going live: open the site, press F12 > Network > click the page > Response Headers.
 
 ## AI photo matching (free)
 
