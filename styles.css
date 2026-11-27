@@ -284,6 +284,10 @@ details summary { cursor: pointer; color: var(--muted); font-weight: 600; font-s
 .msg { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
 .msg.mine { background: var(--brand-soft); border-color: transparent; }
 .msg .who { font-size: .82rem; color: var(--muted); }
+.msg .money-warn { margin-top: 6px; }
+.msg-report summary, .msg details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+#msgSafety { margin-bottom: 10px; }
+.reported-msg { margin: 6px 0; padding: 8px 12px; border-inline-start: 3px solid var(--lost); background: var(--lost-soft); border-radius: 8px; }
 
 .foot { padding-block: 26px 40px; border-top: 1px solid var(--line); font-size: .9rem; display: grid; gap: 4px; }
 .foot p { margin: 0; }

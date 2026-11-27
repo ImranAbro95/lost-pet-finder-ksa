@@ -149,6 +149,32 @@ await go(p,'#case-other1'); await p.click('summary:has-text("Report")'); await p
 await go(p,'#admin',700); R('Moderation','report appears on Moderation page', (await p.textContent('main')).includes('Asking for money'));
 await p.click('[data-hide]'); await p.waitForTimeout(700); await go(p,'#browse-found'); R('Moderation','hidden post disappears from public lists', !(await p.textContent('#results')).includes('Found near park') );
 
+// ---------- 10b. Report private messages + inbox safety (v1.6, B20261124143044) ----------
+await p.evaluate(cid=>{ const d=JSON.parse(localStorage.getItem('lpf-demo-v1')); const now=new Date().toISOString();
+  d.messages.push({id:'scam1',case_id:cid,from_id:'scammer',to_id:'demo-me',body:'Found your cat. Pay 300 SAR first.',created_at:now},
+    {id:'kind1',case_id:cid,from_id:'helper',to_id:'demo-me',body:'Is she still missing? I saw a white cat near the park.',created_at:now},
+    {id:'scam2',case_id:cid,from_id:'scammer2',to_id:'demo-me',body:'أرسل عربون ٢٠٠ ريال تحويل وأرجع القطة',created_at:now});
+  localStorage.setItem('lpf-demo-v1',JSON.stringify(d)); }, myLost); await go(p,'#home',100); await p.reload();
+await go(p,'#mine',900);
+R('Messages','inbox shows the live-video safety line (EN)', (await p.textContent('#msgSafety')||'').includes('live video'));
+const msgBox=async id=>p.$(`#inbox .msg:has([data-flagmsg="${id}"])`);
+R('Messages','each received message has a "Report this message" button', !!(await msgBox('scam1')) && !!(await msgBox('kind1')) && !!(await msgBox('scam2')));
+R('Messages','own sent messages have no report button', (await p.$$('#inbox .msg.mine [data-flagmsg]')).length===0 && (await p.$$('#inbox .msg.mine')).length>=1);
+R('Messages','money warning on a payment message (EN)', !!(await (await msgBox('scam1')).$('.money-warn')));
+R('Messages','money warning on a payment message (AR)', !!(await (await msgBox('scam2')).$('.money-warn')));
+R('Messages','no money warning on a normal message', !(await (await msgBox('kind1')).$('.money-warn')));
+await (await msgBox('scam1')).$eval('details.msg-report',d=>d.open=true); await p.fill('[data-flagtext="scam1"]','Asks for money before returning'); await p.click('[data-flagmsg="scam1"]'); await p.waitForTimeout(400);
+const fl=await p.evaluate(()=>JSON.parse(localStorage.getItem('lpf-demo-v1')).flags.filter(f=>f.message_id==='scam1'));
+R('Messages','reporting a message adds a report with the message id', fl.length===1 && fl[0].case_id===myLost && fl[0].reason.includes('money'), JSON.stringify(fl));
+await go(p,'#admin',700); const adm=await p.textContent('main');
+R('Moderation','reported message text and "Block sender" appear on Moderation page', adm.includes('Pay 300 SAR first') && !!(await p.$('[data-block="scammer"]')));
+await p.evaluate(()=>localStorage.setItem('lpf-lang','ar')); await go(p,'#mine',100); await p.reload(); await p.waitForTimeout(900);
+R('Messages','inbox safety line and report button in Arabic', (await p.textContent('#msgSafety')).includes('فيديو') && (await p.textContent('[data-flagmsg="kind1"]')).includes('الإبلاغ عن الرسالة') && (await p.textContent('#inbox .money-warn')).includes('انتبه'));
+const tgt=await p.$eval('#inbox details.msg-report summary',e=>e.getBoundingClientRect().height); R('Accessibility','message report control is at least 44 px tall', tgt>=44, tgt);
+await p.evaluate(()=>localStorage.setItem('lpf-lang','en')); await p.reload(); await p.waitForTimeout(500);
+{ const sql=fs.readFileSync(path.join(ROOT,'repo','supabase','schema.sql'),'utf8');
+  R('Database','message reports: only the receiver may report, moderators read only reported messages', /add column if not exists message_id uuid references public\.messages\(id\) on delete cascade/.test(sql) && /m\.to_id = auth\.uid\(\) and m\.case_id = flags\.case_id/.test(sql) && /moderators read reported/.test(sql) && /f\.message_id = messages\.id/.test(sql)); }
+
 // ---------- 11. Alerts badge ----------
 await go(p,'#mine',800); await p.evaluate(()=>{ const d=JSON.parse(localStorage.getItem('lpf-demo-v1')); d.cases.push({id:'other2',owner_id:'someone-else',kind:'found',species:'cat',breed:'',sex:'unknown',age_group:'unknown',colors:'white, grey ears',eye_color:'',markings:'',description:'',city:'riyadh',district:'Hittin',lat:null,lng:null,event_date:new Date().toISOString().slice(0,10),photos:[],status:'open',created_at:new Date().toISOString()}); localStorage.setItem('lpf-demo-v1',JSON.stringify(d)); }); await go(p,'#home',100); await p.reload();
 await go(p,'#home',1200); R('Alerts','badge appears for a new matching post', !!(await p.$('[data-nav="mine"] .badge')), await p.evaluate(()=>[...document.querySelectorAll('.badge')].map(b=>b.textContent).join()));

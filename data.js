@@ -97,7 +97,8 @@ class SupabaseStore {
 
   /* ---- admin (allowed only for profiles with is_admin = true, enforced by the database) ---- */
   async listFlags() {
-    const { data, error } = await this.sb.from("flags").select("*").order("created_at", { ascending: false }).limit(200);
+    // A reported private message comes with its text and sender (moderators may read reported messages only).
+    const { data, error } = await this.sb.from("flags").select("*, message:messages(body, from_id, created_at)").order("created_at", { ascending: false }).limit(200);
     if (error) throw error;
     return data || [];
   }
@@ -244,9 +245,11 @@ class SupabaseStore {
     return best;
   }
 
-  async flag(caseId, reason) {
+  async flag(caseId, reason, messageId) {
     await this.ensureUser();
-    const { error } = await this.sb.from("flags").insert({ case_id: caseId, reason });
+    const row = { case_id: caseId, reason };
+    if (messageId) row.message_id = messageId; // "Report this message" (only messages sent to you)
+    const { error } = await this.sb.from("flags").insert(row);
     if (error) throw error;
   }
 
@@ -295,7 +298,12 @@ class DemoStore {
     this.db.messages = []; this.db.marks = {}; this.db.profile = null; this.db.consents = []; this.db.vectors = {};
     this._save(); await this.signOut();
   }
-  async listFlags() { return (this.db.flags || []).map((f, i) => ({ id: i, created_at: f.created_at || new Date().toISOString(), ...f })); }
+  async listFlags() {
+    return (this.db.flags || []).map((f, i) => {
+      const m = f.message_id ? this.db.messages.find(x => x.id === f.message_id) : null;
+      return { id: i, created_at: f.created_at || new Date().toISOString(), ...f, message: m ? { body: m.body, from_id: m.from_id, created_at: m.created_at } : null };
+    });
+  }
   async clearFlag(id) { this.db.flags.splice(id, 1); this._save(); }
   async listHidden() { return this.db.cases.filter(c => c.status === "hidden"); }
   async setBlocked() { /* demo: nothing to block */ }
@@ -363,11 +371,12 @@ class DemoStore {
     }
     return best;
   }
-  async flag(caseId, reason) {
+  async flag(caseId, reason, messageId) {
     await this.ensureUser();
     const since = new Date(Date.now() - 864e5).toISOString();
     if (this.db.flags.filter(f => f.reporter_id === this.uid && f.created_at > since).length >= LIMITS.flags) throw limitError("reports");
-    this.db.flags.push({ case_id: caseId, reason, reporter_id: this.uid, created_at: new Date().toISOString() }); this._save(); }
+    if (messageId && !this.db.messages.some(m => m.id === messageId && m.to_id === this.uid && m.case_id === caseId)) throw new Error("not_allowed: message");
+    this.db.flags.push({ case_id: caseId, reason, reporter_id: this.uid, ...(messageId ? { message_id: messageId } : {}), created_at: new Date().toISOString() }); this._save(); }
 
 }
 
