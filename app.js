@@ -234,9 +234,10 @@ async function viewAdmin() {
     <div class="section-head"><div><h2>${esc(t("adminReports"))}</h2><p>${esc(t("adminReportsHelp"))}</p></div></div>
     <div class="list">${flags.length ? flags.map(f => { const c = cases[f.case_id]; return `<div class="msg"><div class="who"><bdi>${esc((f.created_at || "").slice(0, 16).replace("T", " "))}</bdi></div>
       <p style="margin:.3em 0">${esc(f.reason)}</p>
+      ${f.message ? `<blockquote class="reported-msg"><div class="who">${esc(t("adminMsgFrom"))} ${esc(t("visitor"))} ${esc(shortId(f.message.from_id))}</div><p dir="auto" style="margin:.3em 0; white-space:pre-wrap">${esc(f.message.body)}</p></blockquote>` : ""}
       ${c ? `<a href="#case-${esc(c.id)}">${esc(titleOf(c))}</a> <span class="pill soft">${esc(t(c.status))}</span>` : `<span class="muted">${esc(t("notFound"))}</span>`}
-      <div class="row" style="margin-top:8px">${c && c.status !== "hidden" ? `<button class="btn sm lost" data-hide="${esc(c.id)}" type="button">${esc(t("adminHide"))}</button>` : ""}
-      ${c ? `<button class="btn sm" data-block="${esc(c.owner_id)}" type="button">${esc(t("adminBlock"))}</button>` : ""}
+      <div class="row" style="margin-top:8px">${f.message ? `<button class="btn sm lost" data-block="${esc(f.message.from_id)}" type="button">${esc(t("adminBlockSender"))}</button>` : `${c && c.status !== "hidden" ? `<button class="btn sm lost" data-hide="${esc(c.id)}" type="button">${esc(t("adminHide"))}</button>` : ""}
+      ${c ? `<button class="btn sm" data-block="${esc(c.owner_id)}" type="button">${esc(t("adminBlock"))}</button>` : ""}`}
       <button class="btn sm" data-clear="${esc(f.id)}" type="button">${esc(t("adminClear"))}</button></div></div>`; }).join("") : emptyHtml(t("adminNoReports"))}</div>
     <div class="section-head"><div><h2>${esc(t("adminHidden"))}</h2></div></div>
     <div class="list">${hidden.length ? hidden.map(c => `<div class="msg"><a href="#case-${esc(c.id)}">${esc(titleOf(c))}</a>
@@ -1152,6 +1153,10 @@ async function drawLeads(c) {
 }
 
 /* ---------- my posts ---------- */
+// Money-for-return scams: received messages that mention money get a warning pill (EN + AR words; Arabic letters normalised).
+const MONEY_RE = /(\bsar\b|riyals?\b|\bpay(ment|ing)?\b|\btransfer\b|stc ?pay|\biban\b|\bdeposit\b|\bfee\b|ريال|تحويل|ادفع|دفع|عربون|رسوم|مبلغ|ايبان|اس تي سي)/i;
+function mentionsMoney(text) { return MONEY_RE.test(String(text || "").replace(/[إأآ]/g, "ا").replace(/ة/g, "ه")); }
+
 async function viewMine() {
   const [cases, msgs] = await Promise.all([store.myCases(), store.myMessages()]);
   const caseIds = [...new Set(msgs.map(m => m.case_id))].slice(0, 30);
@@ -1164,20 +1169,29 @@ async function viewMine() {
   ${news.msgs || news.posts ? `<button type="button" class="match-banner" id="newsBanner">${icon("sparkle")}<span>${esc(t("newsLine").replace("{m}", news.msgs).replace("{p}", news.posts))}</span></button>` : ""}
   <div class="grid" id="mineGrid" style="margin-top:14px">${cases.map(cardHtml).join("") || emptyHtml(t("mineEmpty"), "#report-lost", t("iLost"), "lost")}</div>
   <div class="section-head"><h2>${esc(t("inbox"))}</h2></div>
-  <div class="list" id="inbox">${msgs.length ? msgs.map(m => {
+  <div class="list" id="inbox"><p class="notice" id="msgSafety">${icon("shield")} ${esc(t("msgSafety"))}</p>${msgs.length ? msgs.map(m => {
     const fromMe = m.from_id === store.uid, c = known[m.case_id];
     const otherParty = fromMe ? m.to_id : m.from_id;
     return `<div class="msg ${fromMe ? "mine" : ""}"><div class="who">${esc(fromMe ? t("you") : t("visitor") + " " + shortId(m.from_id))} · ${esc((m.created_at || "").slice(0, 16).replace("T", " "))}
       · ${esc(t("aboutCase"))} ${c ? `<a href="#case-${esc(c.id)}">${esc(titleOf(c))}</a>` : ""}</div>
-      <p style="margin:.3em 0; white-space:pre-wrap">${esc(m.body)}</p>
-      ${!fromMe ? `<details><summary>${esc(t("reply"))}</summary><div class="stack"><textarea data-reply="${esc(m.id)}" maxlength="1000"></textarea>
-      <button class="btn sm primary" type="button" data-send="${esc(m.id)}" data-case="${esc(m.case_id)}" data-to="${esc(otherParty)}">${esc(t("sendMsg"))}</button></div></details>` : ""}</div>`;
+      ${!fromMe && mentionsMoney(m.body) ? `<span class="pill lost money-warn">${esc(t("moneyWarn"))}</span>` : ""}
+      <p dir="auto" style="margin:.3em 0; white-space:pre-wrap">${esc(m.body)}</p>
+      ${!fromMe ? `<details><summary>${esc(t("reply"))}</summary><div class="stack"><textarea data-reply="${esc(m.id)}" maxlength="1000" aria-label="${esc(t("reply"))}"></textarea>
+      <button class="btn sm primary" type="button" data-send="${esc(m.id)}" data-case="${esc(m.case_id)}" data-to="${esc(otherParty)}">${esc(t("sendMsg"))}</button></div></details>
+      <details class="msg-report"><summary>${esc(t("reportMsg"))}</summary><div class="stack"><textarea data-flagtext="${esc(m.id)}" maxlength="300" placeholder="${esc(t("reportMsgPh"))}" aria-label="${esc(t("reportMsgPh"))}"></textarea>
+      <button class="btn sm" type="button" data-flagmsg="${esc(m.id)}" data-case="${esc(m.case_id)}">${esc(t("reportMsg"))}</button></div></details>` : ""}</div>`;
   }).join("") : `<p class="muted">${esc(t("inboxEmpty"))}</p>`}</div>`;
 
   healMyPosts(cases); // background: make missing AI fingerprints (self-healing)
   app.querySelectorAll("[data-send]").forEach(b => b.onclick = async () => {
     const ta = app.querySelector(`[data-reply="${CSS.escape(b.dataset.send)}"]`); const body = ta.value.trim(); if (!body) return;
     try { await store.sendMessage(b.dataset.case, b.dataset.to, body); toast(t("msgSent")); route(); } catch (e) { toast(errMsg(e)); }
+  });
+  app.querySelectorAll("[data-flagmsg]").forEach(b => b.onclick = async () => {
+    const ta = app.querySelector(`[data-flagtext="${CSS.escape(b.dataset.flagmsg)}"]`);
+    const reason = (ta && ta.value.trim()) || "message";
+    try { await store.flag(b.dataset.case, reason, b.dataset.flagmsg); if (ta) ta.value = ""; b.closest("details").open = false; toast(t("reported")); }
+    catch (e) { console.error(e); toast(errMsg(e)); }
   });
   const nb = document.getElementById("newsBanner");
   if (nb) nb.onclick = () => document.getElementById(news.msgs ? "inbox" : "mineGrid").scrollIntoView({ behavior: "smooth" });
